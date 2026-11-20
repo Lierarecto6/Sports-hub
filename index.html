@@ -17,17 +17,19 @@ button{font-weight:bold;cursor:pointer;white-space:nowrap}
 .rb{background:#0284c7}.bg{background:#16a34a}.ns{background:#f97316}.br{background:#9333ea}
 .dprev{background:#1f2428;color:#f97316;padding:5px 8px;border-radius:4px;font-weight:bold;font-size:12px}
 .tm{color:#fbbf24;font-weight:bold;font-size:11px}
+#st{font-size:11px;color:#9ca3af;margin-bottom:5px}
 </style>
 </head>
 <body>
 <div class="bar">
 <b style="color:#f97316">SPORTS HUB</b>
-<select id="sp" onchange="show()"><option>Soccer</option><option>Basketball</option></select>
+<select id="sp" onchange="show()"><option>Basketball</option><option>Soccer</option></select>
 <input type="text" id="q" placeholder="Search..." oninput="show()">
 <button style="background:#ea580c" onclick="pair()">Join(<span id="c">0</span>)</button>
 <button style="background:#0284c7" onclick="auto()">Auto-Pair</button>
 <button style="background:#16a34a" onclick="sync()">↻Live</button>
 </div>
+<div id="st">Loading games...</div>
 <div class="days" id="tabs"></div>
 <div class="box">
 <div class="bar">
@@ -50,19 +52,17 @@ button{font-weight:bold;cursor:pointer;white-space:nowrap}
 </div>
 <div id="app"></div>
 <script>
-let day='All', sel=[], data=JSON.parse(localStorage.getItem('fd7'))||[];
-const sv=()=>localStorage.setItem('fd7',JSON.stringify(data));
+let day='All', sel=[], data=JSON.parse(localStorage.getItem('fd8'))||[];
+const sv=()=>localStorage.setItem('fd8',JSON.stringify(data));
 const nm={rb:'RunningBall',bg:'Betgenius',ns:'Newsports',br:'Betradar'};
 const cln=s=>s.toLowerCase().replace(/\b(fc|cf|sc|ac|united|utd|city)\b/g,'').replace(/[^a-z0-9]/g,'');
 
-function phDT(dStr, tStr){
-  if(!dStr) return {d:'Today', tm:''};
-  let cleanT = (tStr||'00:00:00').slice(0,8);
-  if(cleanT.length===5) cleanT+=':00';
-  let dt = new Date(dStr+'T'+cleanT+'Z');
-  if(isNaN(dt)) return {d:dStr, tm:''};
+function phFromISO(isoStr){
+  if(!isoStr) return {d:'Today', tm:''};
+  let dt = new Date(isoStr);
+  if(isNaN(dt)) return {d:'Today', tm:''};
   let d = dt.toLocaleDateString('en-US',{timeZone:'Asia/Manila',weekday:'short'})+', '+dt.toLocaleDateString('en-GB',{timeZone:'Asia/Manila',day:'2-digit',month:'2-digit'}).replace('/','.');
-  let tm = tStr ? dt.toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+  let tm = dt.toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hour12:true});
   return {d, tm};
 }
 
@@ -96,20 +96,34 @@ function add(){
 }
 
 async function sync(){
-  const fs=[[4328,'England - Premier League','Soccer',['rb','bg']],[4335,'Spain - La Liga','Soccer',['rb','br']],[4387,'USA - NBA','Basketball',['rb','bg','br']]];
+  document.getElementById('st').innerText='Fetching live schedule...';
+  const feeds=[
+    ['https://espn.com - NBA','Basketball',['rb','bg']],
+    ['https://espn.com - Premier League','Soccer',['rb','bg']],
+    ['https://espn.com - La Liga','Soccer',['rb','br']],
+    ['https://espn.com Champions League','Soccer',['bg','ns']]
+  ];
   let live=[];
-  for(let [id,l,s,p] of fs){
+  for(let [url,l,s,provs] of feeds){
     try{
-      let j=await(await fetch(`https://thesportsdb.com{id}`)).json();
-      if(j.events) j.events.slice(0,5).forEach(e=>{
-        let info=phDT(e.dateEvent, e.strTime);
-        live.push({id:e.idEvent,d:info.d,tm:info.tm,l,s,t:e.strEvent,p});
-      });
-    }catch(e){console.error(e);}
+      let r=await fetch(url);
+      let j=await r.json();
+      if(j.events){
+        j.events.forEach(e=>{
+          let info=phFromISO(e.date);
+          provs.forEach((pv,idx)=>{
+            live.push({id:e.id+'_'+pv,d:info.d,tm:info.tm,l,s,t:e.name,p:[pv]});
+          });
+        });
+      }
+    }catch(err){console.error(err);}
   }
   if(live.length){
     data=[...live,...data.filter(x=>String(x.id).startsWith('c'))];
     sv();
+    document.getElementById('st').innerText='Loaded '+live.length+' feed entries (Ready to pair).';
+  }else{
+    document.getElementById('st').innerText='No upcoming games returned right now.';
   }
   show();
 }
@@ -150,7 +164,7 @@ function show(){
       h+=`<div class="row"><div><input type="checkbox" ${sel.includes(m.id)?'checked':''} onchange="tog('${m.id}')"> <small style="color:#9ca3af">[${m.d}]</small> ${m.tm?`<span class="tm">${m.tm}</span> `:''}${m.t}</div><div>${m.p.map(c=>`<span class="tag ${c}">${nm[c]}</span>`).join('')}</div></div>`;
     });
   });
-  document.getElementById('app').innerHTML=h;
+  document.getElementById('app').innerHTML=h || '<div style="color:#9ca3af;padding:10px">No matches found for this sport/date.</div>';
 }
 
 setDay(0);
