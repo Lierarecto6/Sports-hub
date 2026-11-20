@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -25,14 +25,14 @@ button{font-weight:bold;cursor:pointer;white-space:nowrap}
   <input type="text" id="q" placeholder="Search..." oninput="show()">
   <button style="background:#ea580c" onclick="pair()">Join(<span id="c">0</span>)</button>
   <button style="background:#0284c7" onclick="auto()">Auto-Pair</button>
-  <button style="background:#16a34a" onclick="bulk()">+Data</button>
+  <button style="background:#16a34a" onclick="sync()">↻Live</button>
 </div>
 
 <div class="days" id="tabs"></div>
 
 <div class="box">
   <div class="bar">
-    <select id="nd"></select>
+    <input type="date" id="nd">
     <select id="np"><option value="rb">RunningBall</option><option value="bg">Betgenius</option><option value="br">Betradar</option><option value="ns">Newsports</option></select>
     <input type="text" id="nl" placeholder="League">
   </div>
@@ -45,27 +45,29 @@ button{font-weight:bold;cursor:pointer;white-space:nowrap}
 <div id="app"></div>
 
 <script>
-const wk=['All Week','Fri, 20.11','Sat, 21.11','Sun, 22.11','Mon, 23.11','Tue, 24.11','Wed, 25.11','Thu, 26.11'];
-let day='All Week', sel=[], data=JSON.parse(localStorage.getItem('fd5'))||[];
-const sv=()=>localStorage.setItem('fd5',JSON.stringify(data));
+let day='All', sel=[], data=JSON.parse(localStorage.getItem('fd6'))||[];
+const sv=()=>localStorage.setItem('fd6',JSON.stringify(data));
 const nm={rb:'RunningBall',bg:'Betgenius',ns:'Newsports',br:'Betradar'};
 const cln=s=>s.toLowerCase().replace(/\b(fc|cf|sc|ac|united|utd|city)\b/g,'').replace(/[^a-z0-9]/g,'');
-document.getElementById('nd').innerHTML=wk.slice(1).map(d=>`<option>${d}</option>`).join('');
+const fmt=s=>s?new Date(s+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'})+', '+s.slice(8,10)+'.'+s.slice(5,7):'Today';
 
 function add(){
   let t=document.getElementById('nm').value.trim(); if(!t)return;
-  data.unshift({id:Date.now()+Math.random(),d:document.getElementById('nd').value,l:document.getElementById('nl').value||'League',s:document.getElementById('sp').value,t,p:[document.getElementById('np').value]});
+  data.unshift({id:'c'+Date.now(),d:fmt(document.getElementById('nd').value),l:document.getElementById('nl').value||'League',s:document.getElementById('sp').value,t,p:[document.getElementById('np').value]});
   document.getElementById('nm').value=''; sv(); show();
 }
 
-function bulk(){
-  const b=[
-    ['Fri, 20.11','Mexico - Liga MX','Soccer','Club Tijuana vs Atlante','rb'],['Fri, 20.11','Mexico - Liga MX','Soccer','Club Tijuana vs Atlante FC','bg'],['Fri, 20.11','Mexico - Liga MX','Soccer','Club Tijuana vs Atlante','br'],
-    ['Sat, 21.11','England - Premier League','Soccer','Arsenal FC vs Chelsea','rb'],['Sat, 21.11','England - Premier League','Soccer','Arsenal vs Chelsea FC','br'],
-    ['Sun, 22.11','Spain - La Liga','Soccer','Real Madrid vs Barcelona','rb'],['Sun, 22.11','Spain - La Liga','Soccer','Real Madrid CF vs FC Barcelona','ns'],
-    ['Fri, 20.11','Philippines - PBA','Basketball','Ginebra vs San Miguel','rb'],['Fri, 20.11','Philippines - PBA','Basketball','Ginebra vs San Miguel','br']
-  ].map(([d,l,s,t,p],i)=>({id:Date.now()+i,d,l,s,t,p:[p]}));
-  data=[...b,...data]; sv(); show();
+async function sync(){
+  const fs=[[4328,'England - Premier League','Soccer',['rb','bg']],[4335,'Spain - La Liga','Soccer',['rb','br']],[4387,'USA - NBA','Basketball',['rb','bg','br']]];
+  let live=[];
+  for(let [id,l,s,p] of fs){
+    try{
+      let j=await(await fetch('https://thesportsdb.com)).json();
+      if(j.events) j.events.slice(0,5).forEach(e=>live.push({id:e.idEvent,d:fmt(e.dateEvent),l,s,t:e.strEvent,p}));
+    }catch(e){}
+  }
+  if(live.length){ data=[...live,...data.filter(x=>String(x.id).startsWith('c'))]; sv(); }
+  show();
 }
 
 function tog(id){ sel=sel.includes(id)?sel.filter(x=>x!==id):[...sel,id]; document.getElementById('c').innerText=sel.length; }
@@ -73,7 +75,7 @@ function tog(id){ sel=sel.includes(id)?sel.filter(x=>x!==id):[...sel,id]; docume
 function pair(){
   if(sel.length<2)return;
   let it=data.filter(x=>sel.includes(x.id));
-  data=[{...it,id:Date.now(),p:[...new Set(it.flatMap(x=>x.p))]},...data.filter(x=>!sel.includes(x.id))];
+  data=[{...it,id:'c'+Date.now(),p:[...new Set(it.flatMap(x=>x.p))]},...data.filter(x=>!sel.includes(x.id))];
   sel=[]; document.getElementById('c').innerText=0; sv(); show();
 }
 
@@ -84,18 +86,18 @@ function auto(){
 }
 
 function show(){
-  document.getElementById('tabs').innerHTML=wk.map(d=>`<button class="${day==d?'act':''}" onclick="day='${d}';show()">${d}</button>`).join('');
+  document.getElementById('tabs').innerHTML=['All',...new Set(data.map(x=>x.d))].map(d=>`<button class="${day==d?'act':''}" onclick="day='${d}';show()">${d}</button>`).join('');
   let sp=document.getElementById('sp').value, q=document.getElementById('q').value.toLowerCase(), h='';
-  let f=data.filter(x=>x.s==sp&&(day=='All Week'||x.d==day)&&x.t.toLowerCase().includes(q));
+  let f=data.filter(x=>x.s==sp&&(day=='All'||x.d==day)&&x.t.toLowerCase().includes(q));
   [...new Set(f.map(x=>x.l))].forEach(lg=>{
     h+=`<div class="lg">${lg}</div>`;
     f.filter(x=>x.l==lg).forEach(m=>{
-      h+=`<div class="row"><div><input type="checkbox" ${sel.includes(m.id)?'checked':''} onchange="tog(${m.id})"> <small style="color:#9ca3af">[${m.d}]</small> ${m.t}</div><div>${m.p.map(c=>`<span class="tag ${c}">${nm[c]}</span>`).join('')}</div></div>`;
+      h+=`<div class="row"><div><input type="checkbox" ${sel.includes(m.id)?'checked':''} onchange="tog('${m.id}')"> <small style="color:#9ca3af">[${m.d}]</small> ${m.t}</div><div>${m.p.map(c=>`<span class="tag ${c}">${nm[c]}</span>`).join('')}</div></div>`;
     });
   });
   document.getElementById('app').innerHTML=h;
 }
-if(!data.length)bulk(); else show();
+sync();
 </script>
 </body>
 </html>
