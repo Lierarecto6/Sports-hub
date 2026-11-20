@@ -4,7 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{background:#1f2428;color:#fff;font-family:sans-serif;font-size:13px;padding:8px;margin:0}
-.bar,.days{display:flex;gap:5px;margin-bottom:7px;flex-wrap:wrap}
+.bar,.days{display:flex;gap:5px;margin-bottom:7px;flex-wrap:wrap;align-items:center}
 .days{overflow-x:auto;flex-wrap:nowrap}
 input,select,button{background:#374151;color:#fff;border:none;padding:6px 8px;border-radius:4px;font-size:12px}
 input[type=text]{flex:1;background:#111827;min-width:90px}
@@ -12,49 +12,87 @@ button{font-weight:bold;cursor:pointer;white-space:nowrap}
 .act{background:#ea580c!important}
 .box{background:#111827;padding:7px;border-radius:6px;margin-bottom:7px}
 .lg{background:#0f766e;padding:5px 8px;font-weight:bold;margin-top:7px;border-radius:4px 4px 0 0}
-.row{background:#374151;padding:7px;border-bottom:1px solid #1f2428;display:flex;justify-content:space-between;align-items:center}
+.row{background:#374151;padding:7px;border-bottom:1px solid #1f2428;display:flex;justify-content:space-between;align-items:center;gap:6px}
 .tag{font-size:10px;padding:2px 5px;border-radius:3px;margin-left:2px;font-weight:bold}
 .rb{background:#0284c7}.bg{background:#16a34a}.ns{background:#f97316}.br{background:#9333ea}
+.dprev{background:#1f2428;color:#f97316;padding:5px 8px;border-radius:4px;font-weight:bold;font-size:12px}
+.tm{color:#fbbf24;font-weight:bold;font-size:11px}
 </style>
 </head>
 <body>
-
 <div class="bar">
-  <b style="color:#f97316;align-self:center">SPORTS HUB</b>
-  <select id="sp" onchange="show()"><option>Soccer</option><option>Basketball</option></select>
-  <input type="text" id="q" placeholder="Search..." oninput="show()">
-  <button style="background:#ea580c" onclick="pair()">Join(<span id="c">0</span>)</button>
-  <button style="background:#0284c7" onclick="auto()">Auto-Pair</button>
-  <button style="background:#16a34a" onclick="sync()">↻Live</button>
+<b style="color:#f97316">SPORTS HUB</b>
+<select id="sp" onchange="show()"><option>Soccer</option><option>Basketball</option></select>
+<input type="text" id="q" placeholder="Search..." oninput="show()">
+<button style="background:#ea580c" onclick="pair()">Join(<span id="c">0</span>)</button>
+<button style="background:#0284c7" onclick="auto()">Auto-Pair</button>
+<button style="background:#16a34a" onclick="sync()">↻Live</button>
 </div>
-
 <div class="days" id="tabs"></div>
-
 <div class="box">
-  <div class="bar">
-    <input type="date" id="nd">
-    <select id="np"><option value="rb">RunningBall</option><option value="bg">Betgenius</option><option value="br">Betradar</option><option value="ns">Newsports</option></select>
-    <input type="text" id="nl" placeholder="League">
-  </div>
-  <div class="bar" style="margin:0">
-    <input type="text" id="nm" placeholder="Match (Team A vs Team B)">
-    <button style="background:#0f766e" onclick="add()">+Create</button>
-  </div>
+<div class="bar">
+<span id="dlabel" class="dprev"></span>
+<select id="qday" onchange="setDay(this.value)">
+  <option value="0">Today</option>
+  <option value="1">Tomorrow</option>
+  <option value="2">+2 Days</option>
+  <option value="3">+3 Days</option>
+</select>
+<input type="date" id="nd" onchange="updLbl()">
+<input type="time" id="nt" value="20:00">
+<select id="np"><option value="rb">RunningBall</option><option value="bg">Betgenius</option><option value="br">Betradar</option><option value="ns">Newsports</option></select>
+<input type="text" id="nl" placeholder="League">
 </div>
-
+<div class="bar" style="margin:0">
+<input type="text" id="nm" placeholder="Match (Team A vs Team B)">
+<button style="background:#0f766e" onclick="add()">+Create</button>
+</div>
+</div>
 <div id="app"></div>
-
 <script>
-let day='All', sel=[], data=JSON.parse(localStorage.getItem('fd6'))||[];
-const sv=()=>localStorage.setItem('fd6',JSON.stringify(data));
+let day='All', sel=[], data=JSON.parse(localStorage.getItem('fd7'))||[];
+const sv=()=>localStorage.setItem('fd7',JSON.stringify(data));
 const nm={rb:'RunningBall',bg:'Betgenius',ns:'Newsports',br:'Betradar'};
 const cln=s=>s.toLowerCase().replace(/\b(fc|cf|sc|ac|united|utd|city)\b/g,'').replace(/[^a-z0-9]/g,'');
-const fmt=s=>s?new Date(s+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'})+', '+s.slice(8,10)+'.'+s.slice(5,7):'Today';
+
+function phDT(dStr, tStr){
+  if(!dStr) return {d:'Today', tm:''};
+  let cleanT = (tStr||'00:00:00').slice(0,8);
+  if(cleanT.length===5) cleanT+=':00';
+  let dt = new Date(dStr+'T'+cleanT+'Z');
+  if(isNaN(dt)) return {d:dStr, tm:''};
+  let d = dt.toLocaleDateString('en-US',{timeZone:'Asia/Manila',weekday:'short'})+', '+dt.toLocaleDateString('en-GB',{timeZone:'Asia/Manila',day:'2-digit',month:'2-digit'}).replace('/','.');
+  let tm = tStr ? dt.toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+  return {d, tm};
+}
+
+function fmtLocal(dStr, tStr){
+  if(!dStr) return {d:'Today', tm:''};
+  let dt = new Date(dStr+'T'+(tStr||'00:00'));
+  let d = dt.toLocaleDateString('en-US',{weekday:'short'})+', '+dStr.slice(8,10)+'.'+dStr.slice(5,7);
+  let tm = tStr ? dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+  return {d, tm};
+}
+
+function setDay(offset){
+  let d=new Date();
+  d.setDate(d.getDate()+parseInt(offset));
+  let iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('nd').value=iso;
+  updLbl();
+}
+
+function updLbl(){
+  document.getElementById('dlabel').innerText=fmtLocal(document.getElementById('nd').value,'').d;
+}
 
 function add(){
-  let t=document.getElementById('nm').value.trim(); if(!t)return;
-  data.unshift({id:'c'+Date.now(),d:fmt(document.getElementById('nd').value),l:document.getElementById('nl').value||'League',s:document.getElementById('sp').value,t,p:[document.getElementById('np').value]});
-  document.getElementById('nm').value=''; sv(); show();
+  let t=document.getElementById('nm').value.trim();
+  if(!t)return;
+  let info=fmtLocal(document.getElementById('nd').value, document.getElementById('nt').value);
+  data.unshift({id:'c'+Date.now(),d:info.d,tm:info.tm,l:document.getElementById('nl').value||'League',s:document.getElementById('sp').value,t,p:[document.getElementById('np').value]});
+  document.getElementById('nm').value='';
+  sv(); show();
 }
 
 async function sync(){
@@ -62,27 +100,44 @@ async function sync(){
   let live=[];
   for(let [id,l,s,p] of fs){
     try{
-      let j=await(await fetch('https://thesportsdb.com)).json();
-      if(j.events) j.events.slice(0,5).forEach(e=>live.push({id:e.idEvent,d:fmt(e.dateEvent),l,s,t:e.strEvent,p}));
-    }catch(e){}
+      let j=await(await fetch(`https://thesportsdb.com{id}`)).json();
+      if(j.events) j.events.slice(0,5).forEach(e=>{
+        let info=phDT(e.dateEvent, e.strTime);
+        live.push({id:e.idEvent,d:info.d,tm:info.tm,l,s,t:e.strEvent,p});
+      });
+    }catch(e){console.error(e);}
   }
-  if(live.length){ data=[...live,...data.filter(x=>String(x.id).startsWith('c'))]; sv(); }
+  if(live.length){
+    data=[...live,...data.filter(x=>String(x.id).startsWith('c'))];
+    sv();
+  }
   show();
 }
 
-function tog(id){ sel=sel.includes(id)?sel.filter(x=>x!==id):[...sel,id]; document.getElementById('c').innerText=sel.length; }
+function tog(id){
+  sel=sel.includes(id)?sel.filter(x=>x!==id):[...sel,id];
+  document.getElementById('c').innerText=sel.length;
+}
 
 function pair(){
   if(sel.length<2)return;
   let it=data.filter(x=>sel.includes(x.id));
   data=[{...it,id:'c'+Date.now(),p:[...new Set(it.flatMap(x=>x.p))]},...data.filter(x=>!sel.includes(x.id))];
-  sel=[]; document.getElementById('c').innerText=0; sv(); show();
+  sel=[];
+  document.getElementById('c').innerText=0;
+  sv(); show();
 }
 
 function auto(){
   let m={};
-  data.forEach(x=>{ let k=x.d+'|'+x.s+'|'+cln(x.t); m[k]=m[k]?{...m[k],p:[...new Set([...m[k].p,...x.p])]}:{...x,p:[...x.p]}; });
-  data=Object.values(m); sel=[]; document.getElementById('c').innerText=0; sv(); show();
+  data.forEach(x=>{
+    let k=x.d+'|'+x.s+'|'+cln(x.t);
+    m[k]=m[k]?{...m[k],p:[...new Set([...m[k].p,...x.p])]}:{...x,p:[...x.p]};
+  });
+  data=Object.values(m);
+  sel=[];
+  document.getElementById('c').innerText=0;
+  sv(); show();
 }
 
 function show(){
@@ -92,11 +147,13 @@ function show(){
   [...new Set(f.map(x=>x.l))].forEach(lg=>{
     h+=`<div class="lg">${lg}</div>`;
     f.filter(x=>x.l==lg).forEach(m=>{
-      h+=`<div class="row"><div><input type="checkbox" ${sel.includes(m.id)?'checked':''} onchange="tog('${m.id}')"> <small style="color:#9ca3af">[${m.d}]</small> ${m.t}</div><div>${m.p.map(c=>`<span class="tag ${c}">${nm[c]}</span>`).join('')}</div></div>`;
+      h+=`<div class="row"><div><input type="checkbox" ${sel.includes(m.id)?'checked':''} onchange="tog('${m.id}')"> <small style="color:#9ca3af">[${m.d}]</small> ${m.tm?`<span class="tm">${m.tm}</span> `:''}${m.t}</div><div>${m.p.map(c=>`<span class="tag ${c}">${nm[c]}</span>`).join('')}</div></div>`;
     });
   });
   document.getElementById('app').innerHTML=h;
 }
+
+setDay(0);
 sync();
 </script>
 </body>
